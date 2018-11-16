@@ -30,11 +30,6 @@ float depth_max = 2.0; // 2m
 float explanation_threshold = 0.01; // 1cm
 float surface_normal_threshold = 30.0; // degrees
 
-float fx = 572.4114f;
-float cx = 325.2611f;
-float fy = 573.57043f;
-float cy = 242.04899f;
-
 void 
 read_depth_image(cv::Mat &depth_image, 
                 std::string depth_image_filepath) {
@@ -195,7 +190,7 @@ main (int argc, char** argv)
   pcl::io::loadPolygonFile(object_model_path, object_mesh);
 
   // Setup surface normal computer
-  cv::Mat K = (cv::Mat_<double>(3, 3) << fx, 0, cx, 0, fy, cy, 0, 0, 1);
+  cv::Mat K = (cv::Mat_<double>(3, 3) << kCameraFX, 0, kCameraCX, 0, kCameraFY, kCameraCY, 0, 0, 1);
   cv::rgbd::RgbdNormals normals_computer(height, width, CV_32F, K, 5, cv::rgbd::RgbdNormals::RGBD_NORMALS_METHOD_LINEMOD);
 
   // Read scene depth image and compute normal
