@@ -1,0 +1,34 @@
+<package>
+  <name>pose_selection</name>
+  <version>1.0.0</version>
+  <description>pose_selection</description>
+  <maintainer email="cm1074@cs.rutgers.edu">Chaitanya Mitash</maintainer>
+
+  <license>BSD</license>
+  <author></author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>roslib</build_depend>
+  <build_depend>pcl_ros</build_depend>
+  <build_depend>cv_bridge</build_depend>
+  <build_depend>libpcl-all-dev</build_depend>
+  <build_depend>libglew-dev</build_depend>
+  <build_depend>glut</build_depend>
+
+  <!-- Dependencies needed after this package is compiled. -->
+  <!-- <run_depend>geometry_msgs</run_depend> -->
+  <!-- <run_depend>sensor_msgs</run_depend> -->
+  <run_depend>roscpp</run_depend>
+  <run_depend>roslib</run_depend>
+  <run_depend>pcl_ros</run_depend>
+  <run_depend>cv_bridge</run_depend>
+  <run_depend>libpcl-all</run_depend>
+  <run_depend>libpcl-all-dev</run_depend>
+  <run_depend>libglew-dev</run_depend>a
+  <run_depend>glut</run_depend>a
+<export>
+    <cpp lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -lkinect_sim" cflags="`pkg-config --cflags eigen3` -I${prefix}/include"/>
+</export>
+
+</package>
