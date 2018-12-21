@@ -284,8 +284,10 @@ main (int argc, char** argv)
   scene_normals.convertTo(scene_normals3f, CV_32FC3);
 
 
+  if (world_rank==0) {
   // Creating an object of CSVWriter
 	CSVWriter writer("/home/pracsys/repos/experiment-data/pose_selection-mpi.csv");  // profiling 
+  }
   auto count_ttc_start = chrono::steady_clock::now();  // profiling
 
   // Read object poses
