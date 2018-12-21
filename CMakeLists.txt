@@ -8,9 +8,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(Boost REQUIRED)
 find_package(catkin COMPONENTS roscpp roslib pcl_ros)
 find_package(OpenCV REQUIRED)
+find_package(MPI REQUIRED) 
 
 include_directories(${PROJECT_SOURCE_DIR}/include ${catkin_INCLUDE_DIRS}
-  ${PCL_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS})
+  ${PCL_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} 
+  ${MPI_C_INCLUDE_PATH})
 
 FIND_PATH( GLEW_INCLUDE_PATH GL/glew.h
            /usr/include
@@ -79,13 +81,13 @@ add_executable(get_best_pose src/pose_selection.cpp
 target_link_libraries (get_best_pose ${Boost_LIBRARIES} ${catkin_LIBRARIES}
                        ${VTK_IO_TARGET_LINK_LIBRARIES}
                        ${GLEW_LIBRARIES} ${GLUT_LIBRARIES} ${OPENGL_LIBRARIES}
-                       ${GLEW_LIBRARIES} ${OpenCV_LIBRARIES}
+                       ${GLEW_LIBRARIES} ${OpenCV_LIBRARIES}  ${MPI_LIBRARIES}
                        )
 
 target_link_libraries (${PROJECT_NAME} ${Boost_LIBRARIES} ${catkin_LIBRARIES}
                        ${VTK_IO_TARGET_LINK_LIBRARIES}
                        ${GLEW_LIBRARIES} ${GLUT_LIBRARIES} ${OPENGL_LIBRARIES}
-                       ${GLEW_LIBRARIES} ${OpenCV_LIBRARIES}
+                       ${GLEW_LIBRARIES} ${OpenCV_LIBRARIES}  ${MPI_LIBRARIES}
                        )
 
 install(TARGETS ${PROJECT_NAME}

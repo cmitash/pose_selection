@@ -4,6 +4,7 @@
 #include <boost/shared_ptr.hpp>
 #include <camera_constants.h>
 #include <simulation_io.hpp>
+#include <chrono>
 
 // For OpenCV
 #include <opencv2/core/core.hpp>
@@ -19,6 +20,75 @@ using namespace pcl::console;
 using namespace pcl::io;
 using namespace pcl::simulation;
 using namespace std;
+
+
+#include <fstream>
+#include <vector>
+#include <set>
+#include <iterator>
+#include <string>
+#include <algorithm>
+
+#include <mpi.h>
+
+/*
+ * A class to create and write profiling data in a csv file.
+ */
+class CSVWriter
+{
+	std::string fileName;
+	std::string delimeter;
+	int linesCount;
+
+public:
+	CSVWriter(std::string filename, std::string delm = ",") :
+			fileName(filename), delimeter(delm), linesCount(1)
+	{}
+	/*
+	 * Member function to store a range as comma seperated value
+	 */
+	template<typename T>
+	void addDatainRow(T first, T last);
+};
+
+/*
+ * This Function accepts a range and appends all the elements in the range
+ * to the last row, seperated by delimeter (Default is comma)
+ */
+template<typename T>
+void CSVWriter::addDatainRow(T first, T last)
+{
+	std::fstream file;
+	// Open the file in truncate mode if first line else in Append Mode
+	file.open(fileName, std::ios::out | (linesCount ? std::ios::app : std::ios::trunc));
+
+	// Iterate over the range and add each lement to file seperated by delimeter.
+	for (; first != last; )
+	{
+		file << *first;
+		if (++first != last)
+			file << delimeter;
+	}
+	file << "\n";
+	linesCount++;
+  // GEORGE via rmate server which maps different files
+	// Close the file
+	file.close();
+}  //  end class for csv-data  profiling
+
+//  Extracting a filename from a path
+std::string getFileName(const std::string& s) {
+
+   char sep = '/';
+
+   size_t i = s.rfind(sep, s.length());
+   if (i != std::string::npos) {
+      return(s.substr(i+1, s.length() - i));
+   }
+
+   return("");
+}
+
 
 // Global 
 SimExample::Ptr simexample;
@@ -135,7 +205,7 @@ render_scene(pcl::simulation::Scene::Ptr scene_ptr,
   pcl::PolygonMesh::Ptr mesh_in (new pcl::PolygonMesh (object_mesh));
   pcl::PolygonMesh::Ptr mesh_out (new pcl::PolygonMesh (object_mesh));
 
-  transform_poly_mesh(mesh_in, mesh_out, obj_pose);
+  transform_poly_mesh(mesh_in, mesh_out, obj_pose); 
 
   PolygonMeshModel::Ptr transformed_mesh = PolygonMeshModel::Ptr (new PolygonMeshModel (GL_POLYGON, mesh_out));
   scene_ptr->add (transformed_mesh);
@@ -153,6 +223,17 @@ render_scene(pcl::simulation::Scene::Ptr scene_ptr,
 int
 main (int argc, char** argv)
 {
+
+  // Initialize the MPI environment
+  MPI_Init(NULL, NULL);
+
+  // Get the number of processes
+  int world_size;
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+  // Get the rank of the process
+  int world_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
   int width = kCameraWidth;
   int height = kCameraHeight;
@@ -172,7 +253,11 @@ main (int argc, char** argv)
     exit(-1);
   }
 
+  
+
   scene_path = std::string(argv[1]);
+
+  //cout << "scene dir name is:"  << getFileName(scene_path)  << endl;
 
   std::string object_pose_filepath = scene_path + "/pose_hypotheses.txt";
   std::string depth_image_filepath = scene_path + "/depth.png";
@@ -198,6 +283,11 @@ main (int argc, char** argv)
   normals_computer(scene_depth_image, scene_normals);
   scene_normals.convertTo(scene_normals3f, CV_32FC3);
 
+
+  // Creating an object of CSVWriter
+	CSVWriter writer("/home/pracsys/repos/experiment-data/pose_selection-mpi.csv");  // profiling 
+  auto count_ttc_start = chrono::steady_clock::now();  // profiling
+
   // Read object poses
   object_pose_file.open (object_pose_filepath, std::ifstream::in);
 
@@ -207,48 +297,136 @@ main (int argc, char** argv)
   float best_score = 0;
   best_obj_pose.setIdentity();
 
-  while (object_pose_file >> obj_pose(0,0) >> obj_pose(0,1) >> obj_pose(0,2) >> obj_pose(0,3)
+
+// read the input file and save it in a 2d vector
+  std::vector< std::vector<double> > vec;
+  double x;
+  while  (object_pose_file>>x) {
+    std::vector<double> row; // Create an empty row
+    for (int j = 0; j < 11; j++) {
+      row.push_back(x); // Add an element (column) to the row
+      object_pose_file>> x;
+    }
+    vec.push_back(row); // Add the row to the main vector
+}
+ object_pose_file.close();
+
+ 
+
+std::vector< std::vector<double> >::const_iterator row;
+std::vector<double>::const_iterator col; 
+
+hypothesis_count = -1;
+
+
+
+for (row = vec.begin(); row != vec.end(); ++row)
+{
+hypothesis_count +=1;
+  if ((hypothesis_count % world_size) == world_rank){
+    int i,j = 0; 
+   for (col = row->begin(); col != row->end(); ++col)
+    {
+      if (j>3) {j = 0; i = i+1;}
+      obj_pose(i,j) = *col;
+      j +=1;
+    }
+      cv::Mat rendered_depth_image = cv::Mat::zeros(height, width, CV_16UC1); 
+      render_scene(scene_, object_mesh, obj_pose, rendered_depth_image); 
+      normals_computer(rendered_depth_image, rendered_normals);
+      rendered_normals.convertTo(rendered_normals3f, CV_32FC3);
+      float score = compute_cost(rendered_depth_image, rendered_normals3f, scene_depth_image, scene_normals3f);
+      write_depth_image(rendered_depth_image, scene_path + "/rendered_images/" + std::to_string(hypothesis_count) + ".png");
+     
+  }
+} 
+
+  
+
+
+
+/*
+    while (object_pose_file >> obj_pose(0,0) >> obj_pose(0,1) >> obj_pose(0,2) >> obj_pose(0,3)
             >> obj_pose(1,0) >> obj_pose(1,1) >> obj_pose(1,2) >> obj_pose(1,3)
             >> obj_pose(2,0) >> obj_pose(2,1) >> obj_pose(2,2) >> obj_pose(2,3)) {
 
-    // render the depth image
-    cv::Mat rendered_depth_image = cv::Mat::zeros(height, width, CV_16UC1);
-    render_scene(scene_, object_mesh, obj_pose, rendered_depth_image);
+      if ((hypothesis_count % world_size) == world_rank){
+      
+          // render the depth image
+          cv::Mat rendered_depth_image = cv::Mat::zeros(height, width, CV_16UC1);
 
-    // compute surface normal for rendered depth image
-    normals_computer(rendered_depth_image, rendered_normals);
-    rendered_normals.convertTo(rendered_normals3f, CV_32FC3);
-    
-    // compute score
-    float score = compute_cost(rendered_depth_image, rendered_normals3f, scene_depth_image, scene_normals3f);
+          //auto count_render_scene_start = chrono::steady_clock::now();  // profiling
+          render_scene(scene_, object_mesh, obj_pose, rendered_depth_image);
+          //auto count_render_scene_end = chrono::steady_clock::now();  // profiling
+          
+          // compute surface normal for rendered depth image
+          normals_computer(rendered_depth_image, rendered_normals);
+          rendered_normals.convertTo(rendered_normals3f, CV_32FC3);
+          
+          // compute score    
+          float score = compute_cost(rendered_depth_image, rendered_normals3f, scene_depth_image, scene_normals3f);
 
-    std::cout << "hypothesis: " << hypothesis_count << ", score: " << score << std::endl;
+        // commenting out to speedup the experiments
+        // std::cout << "hypothesis: " << hypothesis_count << ", score: " << score << std::endl;
 
-    // update score
-    if(score > best_score){
-      best_score = score;
-      best_obj_pose = obj_pose;
-      best_hypothesis_index = hypothesis_count;
+        write_depth_image(rendered_depth_image, scene_path + "/rendered_images/" + std::to_string(hypothesis_count) + ".png");
+      }
+      hypothesis_count++;
+
+      // update score
+      // GEORGE - FIX THIS
+      
+      if(score > best_score){
+        best_score = score;
+        best_obj_pose = obj_pose;
+        best_hypothesis_index = hypothesis_count;
+      }
+      
+
     }
+*/
 
-    write_depth_image(rendered_depth_image, scene_path + "/rendered_images/" + std::to_string(hypothesis_count) + ".png");
-    hypothesis_count++;
+
+ // object_pose_file.close();
+
+  if (world_rank==0){
+
+    Eigen::Matrix3f rotm;
+    rotm  << best_obj_pose(0,0) ,best_obj_pose(0,1) ,best_obj_pose(0,2)
+          ,best_obj_pose(1,0) ,best_obj_pose(1,1) ,best_obj_pose(1,2) 
+          ,best_obj_pose(2,0) ,best_obj_pose(2,1) ,best_obj_pose(2,2);
+
+    Eigen::Quaternionf rotq(rotm);
+
+
+    std::cout << "Best_pose index: " << best_hypothesis_index
+              << ", Best score: " << best_score 
+              << std::endl
+              << "Best pose:" << std::endl 
+              << best_obj_pose(0,3) << " " << best_obj_pose(1,3) << " " << best_obj_pose(2,3) << " " 
+              << rotq.w() << " " << rotq.x() << " " << rotq.y() << " " << rotq.z() << std::endl;
+
+
+    auto count_ttc_end = chrono::steady_clock::now();  // profiling
+
+
+    // save data
+    float ttc = chrono::duration_cast<chrono::milliseconds>(count_ttc_end - count_ttc_start).count(); // time-to-completion
+    cout << " total time to completion in microseconds: "  << ttc << endl;
+
+    std::vector<std::string> ttcList = { "TTC", std::to_string(ttc),getFileName(scene_path),std::to_string(object_mesh.polygons.size())};
+
+
+    // Adding Set to CSV File
+    writer.addDatainRow(ttcList.begin(), ttcList.end());
+
+    std::vector<std::string> hcList = {"NumberHypothesis", std::to_string(hypothesis_count),getFileName(scene_path),std::to_string(object_mesh.polygons.size())};
+    writer.addDatainRow(hcList.begin(), hcList.end());
+
   }
-  object_pose_file.close();
+  // Finalize the MPI environment.
+  MPI_Finalize();
 
-  Eigen::Matrix3f rotm;
-  rotm  << best_obj_pose(0,0) ,best_obj_pose(0,1) ,best_obj_pose(0,2)
-        ,best_obj_pose(1,0) ,best_obj_pose(1,1) ,best_obj_pose(1,2) 
-        ,best_obj_pose(2,0) ,best_obj_pose(2,1) ,best_obj_pose(2,2);
-
-  Eigen::Quaternionf rotq(rotm);
-
-  std::cout << "Best_pose index: " << best_hypothesis_index
-            << ", Best score: " << best_score 
-            << std::endl
-            << "Best pose:" << std::endl 
-            << best_obj_pose(0,3) << " " << best_obj_pose(1,3) << " " << best_obj_pose(2,3) << " " 
-            << rotq.w() << " " << rotq.x() << " " << rotq.y() << " " << rotq.z() << std::endl;
 
   return 0;
 }

@@ -179,6 +179,12 @@ class PCL_EXPORTS RangeLikelihood {
   const float *
   getScoreBuffer ();
 
+
+   void
+  render (const
+          std::vector<Eigen::Isometry3d, Eigen::aligned_allocator<Eigen::Isometry3d>>
+          &poses);  // GEORGE: moved it from private to public so I can call it from simulation_io.cpp
+
  private:
   /**
    * Evaluate the likelihood/score for a set of particles
@@ -192,11 +198,6 @@ class PCL_EXPORTS RangeLikelihood {
 
   void
   computeScoresShader (float *reference);
-
-  void
-  render (const
-          std::vector<Eigen::Isometry3d, Eigen::aligned_allocator<Eigen::Isometry3d>>
-          &poses);
 
   void
   drawParticles (
