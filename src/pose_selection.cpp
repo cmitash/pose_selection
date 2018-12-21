@@ -4,6 +4,7 @@
 #include <boost/shared_ptr.hpp>
 #include <camera_constants.h>
 #include <simulation_io.hpp>
+#include <chrono>
 
 // For OpenCV
 #include <opencv2/core/core.hpp>
@@ -19,6 +20,74 @@ using namespace pcl::console;
 using namespace pcl::io;
 using namespace pcl::simulation;
 using namespace std;
+
+
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <set>
+#include <iterator>
+#include <string>
+#include <algorithm>
+
+/*
+ * A class to create and write profiling data in a csv file.
+ */
+class CSVWriter
+{
+	std::string fileName;
+	std::string delimeter;
+	int linesCount;
+
+public:
+	CSVWriter(std::string filename, std::string delm = ",") :
+			fileName(filename), delimeter(delm), linesCount(1)
+	{}
+	/*
+	 * Member function to store a range as comma seperated value
+	 */
+	template<typename T>
+	void addDatainRow(T first, T last);
+};
+
+/*
+ * This Function accepts a range and appends all the elements in the range
+ * to the last row, seperated by delimeter (Default is comma)
+ */
+template<typename T>
+void CSVWriter::addDatainRow(T first, T last)
+{
+	std::fstream file;
+	// Open the file in truncate mode if first line else in Append Mode
+	file.open(fileName, std::ios::out | (linesCount ? std::ios::app : std::ios::trunc));
+
+	// Iterate over the range and add each lement to file seperated by delimeter.
+	for (; first != last; )
+	{
+		file << *first;
+		if (++first != last)
+			file << delimeter;
+	}
+	file << "\n";
+	linesCount++;
+
+	// Close the file
+	file.close();
+}  //  end class for csv-data  profiling
+
+//  Extracting a filename from a path
+std::string getFileName(const std::string& s) {
+
+   char sep = '/';
+
+   size_t i = s.rfind(sep, s.length());
+   if (i != std::string::npos) {
+      return(s.substr(i+1, s.length() - i));
+   }
+
+   return("");
+}
+
 
 // Global 
 SimExample::Ptr simexample;
@@ -135,7 +204,7 @@ render_scene(pcl::simulation::Scene::Ptr scene_ptr,
   pcl::PolygonMesh::Ptr mesh_in (new pcl::PolygonMesh (object_mesh));
   pcl::PolygonMesh::Ptr mesh_out (new pcl::PolygonMesh (object_mesh));
 
-  transform_poly_mesh(mesh_in, mesh_out, obj_pose);
+  transform_poly_mesh(mesh_in, mesh_out, obj_pose); 
 
   PolygonMeshModel::Ptr transformed_mesh = PolygonMeshModel::Ptr (new PolygonMeshModel (GL_POLYGON, mesh_out));
   scene_ptr->add (transformed_mesh);
@@ -172,7 +241,13 @@ main (int argc, char** argv)
     exit(-1);
   }
 
+  // Creating an object of CSVWriter
+	CSVWriter writer("/home/pracsys/repos/experiment-data/pose_selection.csv");  // profiling 
+  auto count_ttc_start = chrono::steady_clock::now();  // profiling
+
   scene_path = std::string(argv[1]);
+
+  cout << "scene dir name is:"  << getFileName(scene_path)  << endl;
 
   std::string object_pose_filepath = scene_path + "/pose_hypotheses.txt";
   std::string depth_image_filepath = scene_path + "/depth.png";
@@ -213,16 +288,34 @@ main (int argc, char** argv)
 
     // render the depth image
     cv::Mat rendered_depth_image = cv::Mat::zeros(height, width, CV_16UC1);
+
+    auto count_render_scene_start = chrono::steady_clock::now();  // profiling
     render_scene(scene_, object_mesh, obj_pose, rendered_depth_image);
+    auto count_render_scene_end = chrono::steady_clock::now();  // profiling
+    
+    //save data
+    float ttr = chrono::duration_cast<chrono::microseconds>(count_render_scene_end - count_render_scene_start).count();  // time-to-render
+    std::vector<std::string> ttrList = { "TTR", std::to_string(ttr),getFileName(scene_path),std::to_string(object_mesh.polygons.size())};
+    writer.addDatainRow(ttrList.begin(), ttrList.end());
+
+    // ->points.size()
 
     // compute surface normal for rendered depth image
     normals_computer(rendered_depth_image, rendered_normals);
     rendered_normals.convertTo(rendered_normals3f, CV_32FC3);
     
-    // compute score
+    // compute score    
+    auto count_compute_score_start = chrono::steady_clock::now();  // profiling
     float score = compute_cost(rendered_depth_image, rendered_normals3f, scene_depth_image, scene_normals3f);
+    auto count_compute_score_end = chrono::steady_clock::now();  // profiling
 
-    std::cout << "hypothesis: " << hypothesis_count << ", score: " << score << std::endl;
+    //save data
+    float ttcs = chrono::duration_cast<chrono::microseconds>(count_compute_score_end - count_compute_score_start).count();  // time-to-compute-score
+    std::vector<std::string> ttcsList = { "TTCS", std::to_string(ttcs),getFileName(scene_path),std::to_string(object_mesh.polygons.size())};
+    writer.addDatainRow(ttcsList.begin(), ttcsList.end());
+
+  // commenting out to speedup the experiments
+   // std::cout << "hypothesis: " << hypothesis_count << ", score: " << score << std::endl;
 
     // update score
     if(score > best_score){
@@ -243,12 +336,31 @@ main (int argc, char** argv)
 
   Eigen::Quaternionf rotq(rotm);
 
+
   std::cout << "Best_pose index: " << best_hypothesis_index
             << ", Best score: " << best_score 
             << std::endl
             << "Best pose:" << std::endl 
             << best_obj_pose(0,3) << " " << best_obj_pose(1,3) << " " << best_obj_pose(2,3) << " " 
             << rotq.w() << " " << rotq.x() << " " << rotq.y() << " " << rotq.z() << std::endl;
+
+
+  auto count_ttc_end = chrono::steady_clock::now();  // profiling
+
+
+  // save data
+  float ttc = chrono::duration_cast<chrono::microseconds>(count_ttc_end - count_ttc_start).count(); // time-to-completion
+
+
+  std::vector<std::string> ttcList = { "TTC", std::to_string(ttc),getFileName(scene_path),std::to_string(object_mesh.polygons.size())};
+
+
+	// Adding Set to CSV File
+	writer.addDatainRow(ttcList.begin(), ttcList.end());
+
+  std::vector<std::string> hcList = {"NumberHypothesis", std::to_string(hypothesis_count),getFileName(scene_path),std::to_string(object_mesh.polygons.size())};
+  writer.addDatainRow(hcList.begin(), hcList.end());
+
 
   return 0;
 }
