@@ -66,6 +66,7 @@ pcl::simulation::SimExample::initializeGL (int argc, char **argv) {
 
 void
 pcl::simulation::SimExample::doSim (Eigen::Isometry3d pose_in) {
+  /*
   // No reference image - but this is kept for compatability with range_test_v2:
   float *reference = new float[rl_->getRowHeight() * rl_->getColWidth()];
   const float *depth_buffer = rl_->getDepthBuffer();
@@ -76,15 +77,17 @@ pcl::simulation::SimExample::doSim (Eigen::Isometry3d pose_in) {
       reference[n++] = depth_buffer[i * rl_->getWidth() + j];
     }
   }
+*/
 
   std::vector<Eigen::Isometry3d, Eigen::aligned_allocator<Eigen::Isometry3d>>
                                                                            poses;
-  std::vector<float> scores;
-  int n = 1;
+  //std::vector<float> scores;
+  //int n = 1;
   poses.push_back (pose_in);
-  rl_->computeLikelihoods (reference, poses, scores);
+ // rl_->computeLikelihoods (reference, poses, scores);
+ rl_->render(poses);
 
-  delete [] reference;
+ // delete [] reference;
 }
 
 

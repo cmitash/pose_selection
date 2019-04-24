@@ -35,7 +35,7 @@ pcl::simulation::TriangleMeshModel::TriangleMeshModel (pcl::PolygonMesh::Ptr plg
         indices.push_back (indices.size ());
       }
     }
-  }
+  }   
   else
   {
     pcl::PointCloud<pcl::PointXYZ> newcloud;
@@ -198,15 +198,15 @@ pcl::simulation::PolygonMeshModel::draw ()
   // TODO: test by how much
   glEnable (GL_DEPTH_TEST);
   glEnableClientState (GL_VERTEX_ARRAY);
-  glEnableClientState (GL_COLOR_ARRAY);
+  // glEnableClientState (GL_COLOR_ARRAY);
 
-  for (size_t i = 0; i < polygons.size (); i++)
+  for (size_t i = 0; i < polygons.size (); i++)  // GEORGE: IS THIS THE MOST EXPENSIVE FUNCTION?
   {
     glVertexPointer (3, GL_FLOAT, 0, polygons[i].vertices_);
-    glColorPointer (4, GL_FLOAT, 0, polygons[i].colors_);
-    glDrawArrays (mode_, 0, polygons[i].nvertices_);
+    // glColorPointer (4, GL_FLOAT, 0, polygons[i].colors_);
+    glDrawArrays (mode_, 0, polygons[i].nvertices_);  
   }
-  glDisableClientState (GL_COLOR_ARRAY);
+  // glDisableClientState (GL_COLOR_ARRAY);
   glDisableClientState (GL_VERTEX_ARRAY);
 }
 

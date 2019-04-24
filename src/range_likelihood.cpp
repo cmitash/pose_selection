@@ -396,12 +396,13 @@ pcl::simulation::RangeLikelihood::setupProjectionMatrix () {
   float m[16];
   float z_nf = (z_near_ - z_far_);
 
+
   m[0] = 2.0f * fx / width;
   m[4] = 0;
   m[ 8] = 1.0f - (2 * cx / width);
   m[12] = 0;
   m[1] = 0;
-  m[5] = 2.0f * fy / height;
+  m[5] = -2.0f * fy / height;
   m[ 9] = 1.0f - (2 * cy / height);
   m[13] = 0;
   m[2] = 0;
@@ -1410,8 +1411,8 @@ RangeLikelihood::render (const
 
   // Render
   glPushAttrib (GL_ALL_ATTRIB_BITS);
-  glEnable (GL_COLOR_MATERIAL);
-  glClearColor (0.0f, 0.0f, 0.0f, 0.0f);
+  //glEnable (GL_COLOR_MATERIAL);
+  //glClearColor (0.0f, 0.0f, 0.0f, 0.0f);
   glClearDepth (1.0);
   glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -1421,6 +1422,8 @@ RangeLikelihood::render (const
   glEnable (GL_DEPTH_TEST);
   glDepthMask (GL_TRUE);
   glCullFace (GL_FRONT);
+
+  // IMPORTANT
   drawParticles (poses);
 
   glPopAttrib ();
