@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(Boost REQUIRED)
 find_package(catkin COMPONENTS roscpp roslib pcl_ros)
 find_package(OpenCV REQUIRED)
+find_package(OpenMP)
 
 include_directories(${PROJECT_SOURCE_DIR}/include ${catkin_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS})
@@ -76,11 +77,13 @@ add_executable(get_best_pose src/pose_selection.cpp
                             src/scene.cpp
                             src/sum_reduce.cpp) 
 
+target_compile_options(get_best_pose PRIVATE  ${OpenMP_CXX_FLAGS})
+
 target_link_libraries (get_best_pose ${Boost_LIBRARIES} ${catkin_LIBRARIES}
                        ${VTK_IO_TARGET_LINK_LIBRARIES}
                        ${GLEW_LIBRARIES} ${GLUT_LIBRARIES} ${OPENGL_LIBRARIES}
                        ${GLEW_LIBRARIES} ${OpenCV_LIBRARIES}
-                       )
+                       ${OpenMP_CXX_FLAGS})
 
 target_link_libraries (${PROJECT_NAME} ${Boost_LIBRARIES} ${catkin_LIBRARIES}
                        ${VTK_IO_TARGET_LINK_LIBRARIES}
