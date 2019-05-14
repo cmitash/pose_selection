@@ -24,11 +24,11 @@ using namespace std;
 SimExample::Ptr simexample;
 
 // Constants
-float depth_scale = 1000.0;
-float depth_max = 2.0; // 2m
+constexpr float depth_scale = 1000.0;
+constexpr float depth_max = 2.0; // 2m
 
-float explanation_threshold = 0.01; // 1cm
-float surface_normal_threshold = 30.0; // degrees
+constexpr float explanation_threshold = 0.01; // 1cm
+constexpr float surface_normal_threshold = 30.0; // degrees
 
 void 
 read_depth_image(cv::Mat &depth_image, 
