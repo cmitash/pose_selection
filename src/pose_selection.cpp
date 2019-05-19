@@ -18,10 +18,11 @@ using namespace pcl;
 using namespace pcl::console;
 using namespace pcl::io;
 using namespace pcl::simulation;
-using namespace std;
-
 // Global 
-SimExample::Ptr simexample;
+//SimExample::Ptr simexample;
+
+
+
 
 // Constants
 constexpr float depth_scale = 1000.0;
@@ -117,8 +118,8 @@ compute_cost(cv::Mat& rendered_depth_image,
 void 
 render_scene(pcl::simulation::Scene::Ptr scene_ptr,
             pcl::PolygonMesh& object_mesh,
-            Eigen::Matrix4f& obj_pose,
-            cv::Mat& depth_image) {
+             Eigen::Matrix4f& obj_pose,
+             cv::Mat& depth_image, SimExample::Ptr simexample) {
 
   Eigen::Isometry3d camera_pose;
   camera_pose.setIdentity();
@@ -154,8 +155,8 @@ int
 main (int argc, char** argv)
 {
 
-  int width = kCameraWidth;
-  int height = kCameraHeight;
+  const int width = kCameraWidth;
+  const int height = kCameraHeight;
 
   pcl::PolygonMesh object_mesh;
   cv::Mat scene_depth_image;
@@ -178,6 +179,9 @@ main (int argc, char** argv)
   std::string depth_image_filepath = scene_path + "/depth.png";
   std::string object_model_path = scene_path + "/model.obj";
 
+
+  SimExample::Ptr simexample;
+   
   // set up camera simulation
   simexample = SimExample::Ptr (new SimExample (argc, argv, height, width));
   pcl::simulation::Scene::Ptr scene_;
@@ -203,38 +207,67 @@ main (int argc, char** argv)
 
   Eigen::Matrix4f obj_pose, best_obj_pose;
   int hypothesis_count = 0;
-  int best_hypothesis_index = -1;
+  int best_hypothesis_index = -1; 
   float best_score = 0;
   best_obj_pose.setIdentity();
 
-  while (object_pose_file >> obj_pose(0,0) >> obj_pose(0,1) >> obj_pose(0,2) >> obj_pose(0,3)
-            >> obj_pose(1,0) >> obj_pose(1,1) >> obj_pose(1,2) >> obj_pose(1,3)
-            >> obj_pose(2,0) >> obj_pose(2,1) >> obj_pose(2,2) >> obj_pose(2,3)) {
 
-    // render the depth image
-    cv::Mat rendered_depth_image = cv::Mat::zeros(height, width, CV_16UC1);
-    render_scene(scene_, object_mesh, obj_pose, rendered_depth_image);
+    // read the input file and save it in a 2d vector
+  std::vector< std::vector<double> > vec;
+  double x;
+  while  (object_pose_file >> x) 
+  {
 
-    // compute surface normal for rendered depth image
-    normals_computer(rendered_depth_image, rendered_normals);
-    rendered_normals.convertTo(rendered_normals3f, CV_32FC3);
-    
-    // compute score
-    float score = compute_cost(rendered_depth_image, rendered_normals3f, scene_depth_image, scene_normals3f);
-
-    std::cout << "hypothesis: " << hypothesis_count << ", score: " << score << std::endl;
-
-    // update score
-    if(score > best_score){
-      best_score = score;
-      best_obj_pose = obj_pose;
-      best_hypothesis_index = hypothesis_count;
+    std::vector<double> row; // Create an empty row
+    for (int j = 0; j < 11; j++)   // 12 elements but the first is read at the while loop 
+    {
+      row.push_back(x); // Add an element (column) to the row
+      object_pose_file  >> x;
     }
-
-    write_depth_image(rendered_depth_image, scene_path + "/rendered_images/" + std::to_string(hypothesis_count) + ".png");
-    hypothesis_count++;
+    row.push_back(x);  // the last read
+    vec.push_back(row); // Add the row to the main vector
   }
   object_pose_file.close();
+
+
+std::cout << " File Read successfully " << std::endl;
+
+std::size_t i;
+#pragma omp parallel for private (i, obj_pose, rendered_normals, scene_ , simexample)
+for( i = 0; i < vec.size(); ++i) 
+{
+  int k = 0;
+  int l = 0; 
+  for (std::size_t j = 0; j < vec[i].size(); ++j)
+    {
+      if (l > 3) {l = 0; k = k+1;}
+      obj_pose(k,l) = vec[i][j];
+      l +=1;
+    }
+      cv::Mat rendered_depth_image = cv::Mat::zeros(height, width, CV_16UC1); 
+      render_scene(scene_, object_mesh, obj_pose, rendered_depth_image, simexample); 
+      normals_computer(rendered_depth_image, rendered_normals);
+      rendered_normals.convertTo(rendered_normals3f, CV_32FC3);
+      float score = compute_cost(rendered_depth_image, rendered_normals3f, scene_depth_image, scene_normals3f);
+      std::cout << "hypothesis: " << hypothesis_count << ", score: " << score << std::endl;
+/*
+      if(score > best_score)   // TODO: make a reduce sum using openmp
+      {
+        best_score = score;
+        best_obj_pose = obj_pose;
+        best_hypothesis_index = hypothesis_count;
+      }
+
+    //  write_depth_image(rendered_depth_image, scene_path + "/rendered_images/" + std::to_string(i) + ".png");
+      //hypothesis_count += 1;    
+    */ 
+} 
+  
+  object_pose_file.close();
+
+
+std::cout << "GEORGE: test finished "  << std::endl;
+
 
   Eigen::Matrix3f rotm;
   rotm  << best_obj_pose(0,0) ,best_obj_pose(0,1) ,best_obj_pose(0,2)
@@ -249,6 +282,8 @@ main (int argc, char** argv)
             << "Best pose:" << std::endl 
             << best_obj_pose(0,3) << " " << best_obj_pose(1,3) << " " << best_obj_pose(2,3) << " " 
             << rotq.w() << " " << rotq.x() << " " << rotq.y() << " " << rotq.z() << std::endl;
+
+  
 
   return 0;
 }
